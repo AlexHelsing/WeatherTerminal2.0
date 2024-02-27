@@ -6,13 +6,18 @@ A simple weather terminal that display city, temperature, humidity, wind speed, 
 
 ## Technologies used
 
-[Wio Terminal from Seeed Studios](https://wiki.seeedstudio.com/Wio-Terminal-Getting-Started/), developed in Arduino IDE in the C++ language.
+[Wio Terminal from Seeed Studios](https://wiki.seeedstudio.com/Wio-Terminal-Getting-Started/)
+Arduino IDE
+C++ 
+Hardware Timers Interrupts
+HTTP Requests
+JSON
 
 ## Why?
 
-To practice creating IoT projects, C++, 
+To practice embedded programming and IoT. Will implement more advanced features in the future, even though it's a pretty simple project.
 
-Also nice to have a weather terminal so i can get current updates about the weather :)
+Also nice to have a weather terminal so i can get current updates about the weather before leaving my home!
 
 ## Picture
 
