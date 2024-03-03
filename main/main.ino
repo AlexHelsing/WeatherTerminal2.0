@@ -93,6 +93,7 @@ SAMD_ISR_Timer ISR_Timer;
 // 
 WiFiUDP ntpUDP;
 
+// Time client used to get the correct swedish time
 NTPClient timeClient(ntpUDP, "0.se.pool.ntp.org");
 
 // Replace with your country code and city
@@ -275,8 +276,6 @@ void showWeather(String* currentTime){
       windSpeed = JSON.stringify(myObject["wind"]["speed"]);
       description = JSON.stringify(myObject["weather"][0]["main"]);
 
-    
-    
       tft.fillScreen(TFT_BLACK);
 
       // Weather Updates on screen
