@@ -93,6 +93,7 @@ TFT_eSPI tft;
 
 // Create the QR code
 QRCode qrcode;
+// Format: "WIFI:T:WPA;S:SSID;P:PASSWORD;;"
 const char* text = QRCODEWIFI; // Replace this with your actual data
 
 // Init selected SAMD timer
@@ -105,8 +106,8 @@ SAMDTimer ITimer(SELECTED_TIMER);
 SAMD_ISR_Timer ISR_Timer;
 
 #define TIMER_INTERVAL_1S             1000L
-#define TIMER_INTERVAL_2S             2000L
-#define TIMER_INTERVAL_60S            60000L
+#define TIMER_INTERVAL_2S             5000L
+#define TIMER_INTERVAL_600S           600000L
 
 // 
 WiFiUDP ntpUDP;
@@ -135,7 +136,8 @@ String jsonBuffer;
 
 // Use volatile inside ISRs
 volatile boolean secondPassed = false;
-volatile boolean minutePassed = false;
+volatile boolean tenMinutesPassed = false;
+volatile boolean fiveSecondPassed = false;
 
 void TimerHandler(void)
 {
@@ -148,19 +150,19 @@ void secondCounter()
   secondPassed = true;
 }
 
-//void doingSomething2()
-//{}
+//void doingSomething2(){
+  //fiveSecondPassed = true;
+//}
 
-void minuteCounter()
+void tenMinuteCounter()
 {
-  minutePassed = true;
+  tenMinutesPassed = true;
 }
 
 void setup()
 {
   Serial.begin(115200);
 
-  Serial.print(F("\nStarting TimerInterruptLEDDemo on ")); Serial.println(BOARD_NAME);
   Serial.println(SAMD_TIMER_INTERRUPT_VERSION);
   Serial.print(F("CPU Frequency = ")); Serial.print(F_CPU / 1000000); Serial.println(F(" MHz"));
 
@@ -184,7 +186,7 @@ void setup()
   // You can use up to 16 timer for each ISR_Timer
   ISR_Timer.setInterval(TIMER_INTERVAL_1S,  secondCounter);
   //ISR_Timer.setInterval(TIMER_INTERVAL_2S,  doingSomething2);
-  ISR_Timer.setInterval(TIMER_INTERVAL_60S,  minuteCounter);
+  ISR_Timer.setInterval(TIMER_INTERVAL_600S,  tenMinuteCounter);
 
   setupWifiConnection();
   setupStarterScreen();
@@ -202,7 +204,7 @@ void loop()
     tft.setTextSize(3);
     tft.drawString("Time: " + currentTime, 10, 210);
   }
-  if(minutePassed){
+  if(tenMinutesPassed){
     showWeather(currentTimePtr);
   }
 
@@ -220,28 +222,27 @@ void updateTimeScreen(){
 String httpGETRequest(const char* serverName) {
   WiFiClient client;
   HTTPClient http;
-    
   // Your Domain name with URL path or IP address with path
   http.begin(client, serverName);
-  
   // Send HTTP POST request
   int httpResponseCode = http.GET();
-  
+
   payload = "{}"; 
   
-  if (httpResponseCode>0) {
+  if(httpResponseCode != 200){
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+    Serial.println("Data fetch failed.. trying again in one minute");
+    http.end();
+    return payload;
+  }
+  else{
     Serial.print("HTTP Response code: ");
     Serial.println(httpResponseCode);
     payload = http.getString();
+    http.end();
+    return payload;
   }
-  else {
-    Serial.print("Error code: ");
-    Serial.println(httpResponseCode);
-  }
-  // Free resources
-  http.end();
-
-  return payload;
 }
 
 void setupWifiConnection(){
@@ -278,10 +279,13 @@ void showWeather(String* currentTime){
       serverPath = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "," + countryCode + "&APPID=" + openWeatherMapApiKey + "&units=metric";
       
       jsonBuffer = httpGETRequest(serverPath.c_str());
+      if(jsonBuffer == "{}"){
+        tenMinutesPassed = false;
+        return;
+      }
       Serial.println(jsonBuffer);
       JSONVar myObject = JSON.parse(jsonBuffer);
       
-  
       // JSON.typeof(jsonVar) can be used to get the type of the var
       if (JSON.typeof(myObject) == "undefined") {
         Serial.println("Parsing input failed!");
@@ -295,8 +299,6 @@ void showWeather(String* currentTime){
       windSpeed = JSON.stringify(myObject["wind"]["speed"]);
       description = JSON.stringify(myObject["weather"][0]["main"]);
 
-      tft.fillScreen(TFT_BLACK);
-
       // Weather Updates on screen
       tft.setTextSize(4);
       tft.drawString("Boras", 100, 5);
@@ -307,13 +309,13 @@ void showWeather(String* currentTime){
       tft.drawString("Status: " + description, 5, 170);
       tft.setTextSize(3);
 
+      tenMinutesPassed = false;
     }
     else {
       Serial.println("WiFi Disconnected");
       tft.drawString("Wifi disconnected, trying to connect..", 0, 0);
       setupWifiConnection();
     }
-    minutePassed = false;
   }
 
   void displayQrCode(){
@@ -338,9 +340,11 @@ void showWeather(String* currentTime){
     }
 }
   // Adjust for how long the QR code shall be shown
-  delay(5000);
+  delay(7000);
   // Reset screen
   tft.fillScreen(TFT_BLACK);
+  // Just in case, reset the tenMinutesPassed. Otherwise it might double fetch while it goes into the main loop.
+  tenMinutesPassed = false;
   // Update the screen with weather again.
   showWeather(currentTimePtr);
 }
