@@ -2,7 +2,10 @@
 
 ## What is it?
 
-A simple weather terminal that display city, temperature, humidity, wind speed, status of weather and current time.
+A simple weather terminal that display city, temperature, humidity, wind speed, status of weather and current time. City displayed is easily changed within code.
+
+If guests wants to access our home wifi, they can press a button and a QR-code will be generated within the terminal. They can then scan the QR-code to access our wifi network.
+
 
 ## Technologies used
 
@@ -22,3 +25,7 @@ Also nice to have a weather terminal so i can get current updates about the weat
 ## Picture
 
 ![WeatherTerminal](https://i.imgur.com/B8ErCPm.jpg)
+
+
+Wifi-Screen will show up for 7 seconds. I am covering part of QR-code with thumb since wifi-details is in the QR-code.
+![WifiScreen](https://i.imgur.com/O4Mp1I0.jpeg)
