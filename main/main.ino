@@ -160,9 +160,6 @@ void setup()
 {
   Serial.begin(115200);
 
-  tft.begin();
-
-
   Serial.print(F("\nStarting TimerInterruptLEDDemo on ")); Serial.println(BOARD_NAME);
   Serial.println(SAMD_TIMER_INTERRUPT_VERSION);
   Serial.print(F("CPU Frequency = ")); Serial.print(F_CPU / 1000000); Serial.println(F(" MHz"));
@@ -259,6 +256,7 @@ void setupWifiConnection(){
     delay(500);
     Serial.print(".");
     tft.drawString("Connecting to wifi", 0, 0);
+    WiFi.begin(SSID, WIFI_PASSWORD);
   }
   Serial.print("Connected to WiFi network with IP Address: ");
   tft.drawString("Connected to wifi ", 0, 0);
