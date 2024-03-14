@@ -32,6 +32,7 @@
 /////////////////////////////////////////////////////////////////
 
 #define BUZZER_PIN WIO_BUZZER 
+#define SCALE_FACTOR 6
    
 #include "SAMDTimerInterrupt.h"
 #include "SAMD_ISR_Timer.h"
@@ -42,6 +43,8 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include "config.h"
+#include "qrcode.h"
+#include <stdint.h>
 
 // TC3, TC4, TC5 max permissible HW_TIMER_INTERVAL_MS is 1398.101 ms, larger will overflow, therefore not permitted
 // Use TCC, TCC1, TCC2 for longer HW_TIMER_INTERVAL_MS
@@ -76,6 +79,21 @@
   #define SELECTED_TIMER      TIMER_TC3
 
 #endif  
+
+// Wio Buttons
+
+boolean leftButtonPressed = false;
+
+
+// TFT Display
+
+TFT_eSPI tft;
+
+// QR Code
+
+// Create the QR code
+QRCode qrcode;
+const char* text = QRCODEWIFI; // Replace this with your actual data
 
 // Init selected SAMD timer
 SAMDTimer ITimer(SELECTED_TIMER);
@@ -114,8 +132,6 @@ String serverPath;
 String payload = "{}"; 
 String jsonBuffer;
 
-TFT_eSPI tft;
-
 
 // Use volatile inside ISRs
 volatile boolean secondPassed = false;
@@ -143,8 +159,9 @@ void minuteCounter()
 void setup()
 {
   Serial.begin(115200);
-  
-  delay(100);
+
+  tft.begin();
+
 
   Serial.print(F("\nStarting TimerInterruptLEDDemo on ")); Serial.println(BOARD_NAME);
   Serial.println(SAMD_TIMER_INTERRUPT_VERSION);
@@ -156,6 +173,7 @@ void setup()
   // configure pin in output mode
   pinMode(PIN_LED, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(BUTTON_1, INPUT_PULLUP);
 
   // Interval in millisecs
   if (ITimer.attachInterruptInterval_MS(HW_TIMER_INTERVAL_MS, TimerHandler))
@@ -177,6 +195,9 @@ void setup()
 
 void loop()
 {
+  if(digitalRead(WIO_KEY_A) == LOW){
+    displayQrCode();
+  }
   if(secondPassed){
     timeClient.update();
     timeClient.setTimeOffset(3600);
@@ -296,4 +317,34 @@ void showWeather(String* currentTime){
     }
     minutePassed = false;
   }
+
+  void displayQrCode(){
+    tft.setRotation(3); // Adjust rotation if needed
+    tft.fillScreen(TFT_BLACK); // Fill the screen with black color
+    tft.setTextSize(2);
+    tft.drawString("Scan the QR code for Wifi", 10, 210);
+
+    uint8_t qrcodeData[qrcode_getBufferSize(3)];
+    qrcode_initText(&qrcode, qrcodeData, 3, 0, text);
+
+    for (uint8_t y = 0; y < qrcode.size; y++) {
+    for (uint8_t x = 0; x < qrcode.size; x++) {
+        if (qrcode_getModule(&qrcode, x, y)) {
+            // Draw a block of pixels based on the scaling factor
+            for (uint8_t sy = 0; sy < SCALE_FACTOR; sy++) {
+                for (uint8_t sx = 0; sx < SCALE_FACTOR; sx++) {
+                    tft.drawPixel(x * SCALE_FACTOR + sx + 10, y * SCALE_FACTOR + sy + 10, TFT_WHITE);
+                }
+            }
+        }
+    }
+}
+  // Adjust for how long the QR code shall be shown
+  delay(5000);
+  // Reset screen
+  tft.fillScreen(TFT_BLACK);
+  // Update the screen with weather again.
+  showWeather(currentTimePtr);
+}
+
 
