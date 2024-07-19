@@ -84,6 +84,17 @@
 
 boolean leftButtonPressed = false;
 
+// Pomodoro
+
+#define POMODORO_WORK_DURATION 1500 // 25 minutes
+#define POMODORO_BREAK_DURATION 300 // 5 minutes
+#define POMODORO_CYCLES 4
+
+volatile boolean pomodoroActive = false;
+volatile boolean pomodoroWork = true;
+volatile int pomodoroCycle = 0;
+volatile int pomodoroTimeLeft = POMODORO_WORK_DURATION;
+volatile boolean pomodoroSecondPassed = false;
 
 // TFT Display
 
@@ -105,9 +116,9 @@ SAMDTimer ITimer(SELECTED_TIMER);
 // Each SAMD_ISR_Timer can service 16 different ISR-based timers
 SAMD_ISR_Timer ISR_Timer;
 
-#define TIMER_INTERVAL_1S             1000L
-#define TIMER_INTERVAL_2S             5000L
-#define TIMER_INTERVAL_600S           600000L
+#define TIMER_INTERVAL_1S 1000L // 1000 milliseconds = 1 second
+#define TIMER_INTERVAL_2S 5000L
+#define TIMER_INTERVAL_600S 600000L
 
 // 
 WiFiUDP ntpUDP;
@@ -139,15 +150,14 @@ volatile boolean secondPassed = false;
 volatile boolean tenMinutesPassed = false;
 volatile boolean fiveSecondPassed = false;
 
-void TimerHandler(void)
-{
+void TimerHandler(void) {
   ISR_Timer.run();
 }
 
 // In SAMD, avoid doing something fancy in ISR, for example complex Serial.print with String() argument
-void secondCounter()
-{
+void secondCounter() {
   secondPassed = true;
+  pomodoroSecondPassed = true; // Update the Pomodoro flag
 }
 
 //void doingSomething2(){
@@ -173,6 +183,8 @@ void setup()
   pinMode(PIN_LED, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(BUTTON_1, INPUT_PULLUP);
+  pinMode(WIO_KEY_B, INPUT_PULLUP);
+  pinMode(WIO_BUZZER, OUTPUT);
 
   // Interval in millisecs
   if (ITimer.attachInterruptInterval_MS(HW_TIMER_INTERVAL_MS, TimerHandler))
@@ -184,7 +196,7 @@ void setup()
 
   // Just to demonstrate, don't use too many ISR Timers if not absolutely necessary
   // You can use up to 16 timer for each ISR_Timer
-  ISR_Timer.setInterval(TIMER_INTERVAL_1S,  secondCounter);
+  ISR_Timer.setInterval(TIMER_INTERVAL_1S, secondCounter);
   //ISR_Timer.setInterval(TIMER_INTERVAL_2S,  doingSomething2);
   ISR_Timer.setInterval(TIMER_INTERVAL_600S,  tenMinuteCounter);
 
@@ -192,27 +204,44 @@ void setup()
   setupStarterScreen();
 }
 
-void loop()
-{
+void loop() {
+  if (digitalRead(WIO_KEY_B) == LOW) {
+    startPomodoro();
+  }
+
+  if (pomodoroActive) {
+    updatePomodoro();
+  }
+
   if(digitalRead(WIO_KEY_A) == LOW){
     displayQrCode();
   }
-  if(secondPassed){
+
+  if (secondPassed) {
     timeClient.update();
-    timeClient.setTimeOffset(3600);
+    timeClient.setTimeOffset(7200);
     currentTime = timeClient.getFormattedTime();
-    tft.setTextSize(3);
-    tft.drawString("Time: " + currentTime, 10, 210);
-  }
-  if(tenMinutesPassed){
-    showWeather(currentTimePtr);
+    if(!pomodoroActive){
+        tft.setTextSize(3);
+        tft.drawString("Time: " + currentTime, 10, 210);
+        secondPassed = false; // Reset the flag after updating 
+    }
+    else{
+      secondPassed = false; // Reset the flag after updating 
+    }
   }
 
+  if (tenMinutesPassed) {
+    tenMinutesPassed = false; // Reset the flag after updating
+    if(!pomodoroActive){
+      showWeather(currentTimePtr);
+    }
+  }
 }
 
 void updateTimeScreen(){
     timeClient.update();
-    timeClient.setTimeOffset(3600);
+    timeClient.setTimeOffset(7200);
     currentTime = timeClient.getFormattedTime();
     tft.setTextSize(3);
     tft.drawString("Time: " + currentTime, 10, 210);
@@ -319,8 +348,10 @@ void showWeather(String* currentTime){
   }
 
   void displayQrCode(){
+    pomodoroActive = false;
     tft.setRotation(3); // Adjust rotation if needed
     tft.fillScreen(TFT_BLACK); // Fill the screen with black color
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.setTextSize(2);
     tft.drawString("Scan the QR code for Wifi", 10, 210);
 
@@ -347,6 +378,79 @@ void showWeather(String* currentTime){
   tenMinutesPassed = false;
   // Update the screen with weather again.
   showWeather(currentTimePtr);
+}
+
+void startPomodoro() {
+  pomodoroActive = true;
+  pomodoroWork = true;
+  pomodoroCycle = 0;
+  pomodoroTimeLeft = POMODORO_WORK_DURATION;
+  tft.fillScreen(TFT_RED);
+  tft.setTextSize(4);
+  tft.setTextColor(TFT_WHITE, TFT_RED);
+  tft.drawString("Pomodoro Work", 10, 20);
+  analogWrite(WIO_BUZZER, 128);
+  delay(250);
+  analogWrite(WIO_BUZZER, 0);
+  delay(250);
+  updatePomodoroDisplay();
+}
+
+void updatePomodoroDisplay() {
+  int minutes = pomodoroTimeLeft / 60;
+  int seconds = pomodoroTimeLeft % 60;
+  char timeString[6];
+  sprintf(timeString, "%02d:%02d", minutes, seconds);
+  //tft.fillRect(10, 50, 200, 50, TFT_BLACK); // Clear previous time
+  tft.setTextColor(pomodoroWork ? TFT_WHITE : TFT_BLACK , pomodoroWork ? TFT_RED : TFT_GREEN);
+  tft.setTextSize(5);
+  tft.drawString(timeString, 90, 100);
+}
+
+void updatePomodoro() {
+  if (pomodoroSecondPassed) {
+    pomodoroTimeLeft--;
+    updatePomodoroDisplay();
+    if (pomodoroTimeLeft <= 0) {
+      if (pomodoroWork) {
+        pomodoroCycle++;
+        if (pomodoroCycle < POMODORO_CYCLES) {
+          pomodoroWork = false;
+          pomodoroTimeLeft = POMODORO_BREAK_DURATION;
+          tft.fillScreen(TFT_GREEN);
+          tft.setTextColor(TFT_BLACK, TFT_GREEN);
+          tft.setTextSize(3);
+          tft.drawString("Pomodoro Break", 30, 20);
+          analogWrite(WIO_BUZZER, 128);
+          delay(1000);
+          analogWrite(WIO_BUZZER, 0);
+          delay(1000);
+        } else {
+          pomodoroActive = false;
+          tft.fillScreen(TFT_GREEN);
+          tft.setTextColor(TFT_BLACK, TFT_GREEN);
+          tft.setTextSize(3);
+          tft.drawString("Pomodoro Done!", 5, 20);
+          analogWrite(WIO_BUZZER, 128);
+          delay(1000);
+          analogWrite(WIO_BUZZER, 0);
+          delay(1000);
+        }
+      } else {
+        pomodoroWork = true;
+        pomodoroTimeLeft = POMODORO_WORK_DURATION;
+        tft.fillScreen(TFT_RED);
+        tft.setTextColor(TFT_WHITE, TFT_RED);
+        tft.setTextSize(4);
+        tft.drawString("Pomodoro Work", 20, 20);
+        analogWrite(WIO_BUZZER, 128);
+        delay(1000);
+        analogWrite(WIO_BUZZER, 0);
+        delay(1000);
+      }
+    }
+    pomodoroSecondPassed = false;
+  }
 }
 
 

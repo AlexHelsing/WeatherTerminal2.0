@@ -6,6 +6,7 @@ A simple weather terminal that display city, temperature, humidity, wind speed, 
 
 If guests wants to access our home wifi, they can press a button and a QR-code will be generated within the terminal. They can then scan the QR-code to access our wifi network.
 
+Built in pomodoro timer. Press a button for a 25 minute pomodoro timer, with a 5 minute break in between. Signals breaktime with a BEEP sound and screen change.
 
 ## Technologies used
 
